@@ -210,9 +210,10 @@ class BehaviourDetector:
             dns_meta = dpi_result.metadata.get("dns")
             if dns_meta:
                 # DGA / high-entropy or excessive domain heuristics
+                # Prevent duplicate alerts: only fire legacy check if dns_threat_engine did not already handle
                 if dns_meta.is_suspicious_domain:
                     reasons = "; ".join(dns_meta.suspicious_reasons)
-                    if not self._is_cooldown_active(src_ip, "dns_dga", now):
+                    if not self._is_cooldown_active(src_ip, "dns_dga", now) and not self._is_cooldown_active(src_ip, "DNS_DGA", now):
                         alerts.append(
                             IDSAlert.create(
                                 alert_id=next_alert_id_fn(),
@@ -287,7 +288,7 @@ class BehaviourDetector:
                 dt_cfg = self.config.get("dns_tunneling", {})
                 if dt_cfg.get("enabled", True) and getattr(dns_meta, "is_dns_tunneling", False):
                     reasons = "; ".join(dns_meta.tunneling_indicators) if dns_meta.tunneling_indicators else "DNS Tunneling characteristics detected"
-                    if not self._is_cooldown_active(src_ip, "dns_tunneling", now):
+                    if not self._is_cooldown_active(src_ip, "dns_tunneling", now) and not self._is_cooldown_active(src_ip, "DNS_TUNNEL", now):
                         alerts.append(
                             IDSAlert.create(
                                 alert_id=next_alert_id_fn(),
@@ -309,7 +310,7 @@ class BehaviourDetector:
                 # DNS Domain Reputation Check
                 if dns_meta.query_name:
                     rep_dom = self.reputation_engine.check_domain(dns_meta.query_name)
-                    if rep_dom and not self._is_cooldown_active(dns_meta.query_name, f"REP_DOM_{rep_dom.category}", now):
+                    if rep_dom and not self._is_cooldown_active(dns_meta.query_name, f"REP_DOM_{rep_dom.category}", now) and not self._is_cooldown_active(dns_meta.query_name, f"TI_DOM:{dns_meta.query_name}:{rep_dom.category}", now):
                         alerts.append(
                             IDSAlert.create(
                                 alert_id=next_alert_id_fn(),
@@ -498,7 +499,7 @@ class BehaviourDetector:
 
         # --- 12. Threat Intelligence / IP Reputation ---
         rep_src = self.reputation_engine.check_ip(src_ip)
-        if rep_src and not self._is_cooldown_active(src_ip, f"REP_IP_{rep_src.category}", now):
+        if rep_src and not self._is_cooldown_active(src_ip, f"REP_IP_{rep_src.category}", now) and not self._is_cooldown_active(src_ip, f"TI_IP_SRC:{src_ip}:{rep_src.category}", now):
             alerts.append(
                 IDSAlert.create(
                     alert_id=next_alert_id_fn(),
@@ -518,7 +519,7 @@ class BehaviourDetector:
             )
 
         rep_dst = self.reputation_engine.check_ip(dst_ip)
-        if rep_dst and not self._is_cooldown_active(dst_ip, f"REP_DST_IP_{rep_dst.category}", now):
+        if rep_dst and not self._is_cooldown_active(dst_ip, f"REP_DST_IP_{rep_dst.category}", now) and not self._is_cooldown_active(dst_ip, f"TI_IP_DST:{dst_ip}:{rep_dst.category}", now):
             alerts.append(
                 IDSAlert.create(
                     alert_id=next_alert_id_fn(),

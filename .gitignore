@@ -1,0 +1,41 @@
+@'
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Cache and testing
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+
+# Packet captures
+*.pcap
+*.pcapng
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+'@ | Add-Content -Path .gitignore

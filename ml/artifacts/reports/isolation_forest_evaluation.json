@@ -1,0 +1,36 @@
+{
+  "model_name": "IsolationForest",
+  "total_samples": 8018,
+  "normal_samples": 4801,
+  "anomaly_samples": 3217,
+  "contamination": 0.05,
+  "accuracy": 0.6452980793215266,
+  "precision": 0.714614499424626,
+  "recall": 0.19303699098539012,
+  "f1": 0.3039647577092511,
+  "false_positive_rate": 0.05165590501978754,
+  "true_positive_rate": 0.19303699098539012,
+  "roc_auc": 0.6201384904722407,
+  "pr_auc": 0.5101532132739159,
+  "confusion_matrix": [
+    [
+      4553,
+      248
+    ],
+    [
+      2596,
+      621
+    ]
+  ],
+  "notes": "Unsupervised baseline trained strictly on BENIGN flows.",
+  "metadata": {
+    "n_estimators": 100,
+    "contamination": 0.05,
+    "max_samples": "auto",
+    "random_state": 42,
+    "train_rows_benign": 16799,
+    "train_rows_total": 28060,
+    "train_duration_seconds": 0.316,
+    "feature_count": 40
+  }
+}

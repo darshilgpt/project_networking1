@@ -141,15 +141,26 @@ def main() -> int:
 
         # 2. TCP Stream Reassembly (if TCP with payload)
         reassembled_data = None
+        directional_stream = None
+        direction = None
+        pending_requests = None
+
         if packet.tcp and packet.payload:
             new_chunk, full_stream = tcp_reassembler.process_packet(packet)
             reassembled_data = full_stream if full_stream else packet.payload
+            dir_stream, dir_enum, pending_q = tcp_reassembler.get_directional_context(packet)
+            directional_stream = dir_stream
+            direction = dir_enum
+            pending_requests = pending_q
 
         # 3. Deep Packet Inspection (DPI)
         dpi_result = dpi_engine.inspect(
             packet=packet,
             flow=flow,
             reassembled_payload=reassembled_data,
+            directional_stream=directional_stream,
+            direction=direction,
+            pending_requests=pending_requests,
         )
 
         # Record protocol back into flow

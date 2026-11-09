@@ -1,0 +1,201 @@
+{
+  "model_name": "RandomForest",
+  "total_samples": 8018,
+  "num_classes": 9,
+  "classes": [
+    "BENIGN",
+    "Bot",
+    "Brute Force",
+    "DDoS",
+    "DoS",
+    "Heartbleed",
+    "Infiltration",
+    "PortScan",
+    "Web Attack"
+  ],
+  "accuracy": 0.9860314292841108,
+  "macro_precision": 0.9748777536491843,
+  "macro_recall": 0.9792910490887886,
+  "macro_f1": 0.9757224406833185,
+  "weighted_precision": 0.987453134024138,
+  "weighted_recall": 0.9860314292841108,
+  "weighted_f1": 0.9863567351861798,
+  "per_class_metrics": {
+    "BENIGN": {
+      "support": 4801,
+      "precision": 0.998089577584377,
+      "recall": 0.9793792959800042,
+      "f1": 0.988645920941968
+    },
+    "Bot": {
+      "support": 390,
+      "precision": 0.8533916849015317,
+      "recall": 1.0,
+      "f1": 0.9208972845336482
+    },
+    "Brute Force": {
+      "support": 600,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "DDoS": {
+      "support": 600,
+      "precision": 0.9983333333333333,
+      "recall": 0.9983333333333333,
+      "f1": 0.9983333333333333
+    },
+    "DoS": {
+      "support": 600,
+      "precision": 0.993322203672788,
+      "recall": 0.9916666666666667,
+      "f1": 0.9924937447873228
+    },
+    "Heartbleed": {
+      "support": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "Infiltration": {
+      "support": 7,
+      "precision": 1.0,
+      "recall": 0.8571428571428571,
+      "f1": 0.9230769230769231
+    },
+    "PortScan": {
+      "support": 600,
+      "precision": 0.998330550918197,
+      "recall": 0.9966666666666667,
+      "f1": 0.9974979149291076
+    },
+    "Web Attack": {
+      "support": 418,
+      "precision": 0.9324324324324325,
+      "recall": 0.9904306220095693,
+      "f1": 0.9605568445475638
+    }
+  },
+  "confusion_matrix": [
+    [
+      4702,
+      67,
+      0,
+      1,
+      3,
+      0,
+      0,
+      1,
+      27
+    ],
+    [
+      0,
+      390,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      600,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      599,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      4,
+      0,
+      0,
+      0,
+      595,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      6,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      598,
+      2
+    ],
+    [
+      3,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      414
+    ]
+  ],
+  "notes": "Supervised multiclass classifier with balanced class weights.",
+  "metadata": {
+    "n_estimators": 100,
+    "max_depth": 20,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "train_rows": 28060,
+    "train_duration_seconds": 0.593,
+    "classes_trained": [
+      "BENIGN",
+      "Bot",
+      "Brute Force",
+      "DDoS",
+      "DoS",
+      "Heartbleed",
+      "Infiltration",
+      "PortScan",
+      "Web Attack"
+    ],
+    "feature_count": 40
+  }
+}

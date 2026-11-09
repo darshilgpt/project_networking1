@@ -14,6 +14,9 @@ from dpi.dpi_engine import DPIEngine
 from ids.ids_engine import IDSEngine
 from ips.blocking_manager import BlockingManager
 from ips.decision_engine import DecisionEngine
+from flow.flow_manager import FlowManager
+from ml.runtime.config import MLRuntimeConfig
+from ml.runtime.engine import MLRuntimeEngine
 from models.alert_model import DecisionAction, DPIResult, IDSAlert
 from models.flow_model import Flow
 from models.packet_models import ParsedPacket
@@ -72,6 +75,8 @@ class PipelineWorkerPool:
         num_workers: int = 4,
         queue_size: int = 10000,
         active_prevention: bool = False,
+        threat_intel_feeds: Optional[List[str]] = None,
+        ml_config: Optional[MLRuntimeConfig] = None,
         on_packet_processed: Optional[Callable[[ProcessedPacketResult], None]] = None,
         on_alert_generated: Optional[Callable[[IDSAlert, ClientContext], None]] = None,
     ) -> None:
@@ -81,6 +86,8 @@ class PipelineWorkerPool:
             num_workers: Number of concurrent worker threads.
             queue_size: Capacity bound for the internal packet queue.
             active_prevention: Whether IPS active blocking is enabled.
+            threat_intel_feeds: Optional external IOC feed paths.
+            ml_config: Optional configuration for runtime ML inference engine.
             on_packet_processed: Callback invoked when a packet completes inspection.
             on_alert_generated: Callback invoked when an IDS alert is raised.
         """
@@ -97,9 +104,32 @@ class PipelineWorkerPool:
         # Core reusable engines
         self.dispatcher = PacketDispatcher()
         self.dpi_engine = DPIEngine()
-        self.ids_engine = IDSEngine()
+        self.ids_engine = IDSEngine(threat_intel_feeds=threat_intel_feeds)
         self.decision_engine = DecisionEngine()
         self.blocking_manager = BlockingManager(active_prevention=active_prevention)
+
+        # Runtime ML inference engine
+        def _on_ml_alert(ml_alert: IDSAlert) -> None:
+            # Route ML alert to client context and global alert callback
+            with self._stats_lock:
+                self.stats.total_alerts += 1
+                self.recent_alerts.appendleft((ml_alert, "ML-Inference"))
+            if self.on_alert_generated:
+                try:
+                    # Find client context for source IP if possible
+                    dummy_client = self.client_manager.clients.get(
+                        ml_alert.source_ip,
+                        ClientContext(client_ip=ml_alert.source_ip),
+                    )
+                    dummy_client.record_alert(ml_alert)
+                    self.on_alert_generated(ml_alert, dummy_client)
+                except Exception as ex:
+                    logger.error(f"Error dispatching ML alert: {ex}")
+
+        self.ml_engine = MLRuntimeEngine(
+            config=ml_config,
+            on_alert_generated=_on_ml_alert,
+        )
 
         # Thread synchronization
         self._stop_event = threading.Event()
@@ -202,11 +232,23 @@ class PipelineWorkerPool:
         # 3. Client-Isolated Flow Tracking
         flow = client_ctx.flow_manager.process_packet(parsed)
 
+        # Asynchronously submit flow to ML inference engine if eligible
+        if flow:
+            self.ml_engine.submit_flow(flow)
+
         # 4. Client-Isolated TCP Stream Reassembly
         reassembled_data = None
+        directional_stream = None
+        direction = None
+        pending_requests = None
+
         if parsed.tcp and parsed.payload:
             new_chunk, full_stream = client_ctx.tcp_reassembler.process_packet(parsed)
             reassembled_data = full_stream if full_stream else parsed.payload
+            dir_stream, dir_enum, pending_q = client_ctx.tcp_reassembler.get_directional_context(parsed)
+            directional_stream = dir_stream
+            direction = dir_enum
+            pending_requests = pending_q
 
         # 5. Deep Packet Inspection (DPI)
         with self._engine_lock:
@@ -214,6 +256,9 @@ class PipelineWorkerPool:
                 packet=parsed,
                 flow=flow,
                 reassembled_payload=reassembled_data,
+                directional_stream=directional_stream,
+                direction=direction,
+                pending_requests=pending_requests,
             )
 
         if flow and dpi_result.protocol not in ("None", "Unknown"):
@@ -314,6 +359,8 @@ class PipelineWorkerPool:
                 t.join(timeout=timeout)
 
         self.stats.active_workers = sum(1 for t in self._threads if t.is_alive())
+        # Shutdown ML engine
+        self.ml_engine.stop(timeout=timeout)
         # Shutdown blocking manager (stops auto-reaper and flushes firewall rules)
         self.blocking_manager.shutdown()
         logger.info("Worker pool successfully shut down.")

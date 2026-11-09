@@ -11,6 +11,7 @@ import time
 from typing import Dict, List, Optional
 
 from capture.interface_manager import InterfaceManager
+from ml.runtime.config import MLRuntimeConfig
 from models.alert_model import IDSAlert
 from models.packet_models import InterfaceInfo
 from server.client_manager import ClientContext, ClientManager
@@ -44,6 +45,8 @@ class ServerConfig:
     vpn_subnets: List[str] = field(default_factory=lambda: ["10.8.0.0/24", "10.10.0.0/24"])
     predefined_clients: Dict[str, str] = field(default_factory=dict)
     wireguard_peers_file: Optional[str] = "wireguard_config/wireguard_peers.json"
+    threat_intel_feeds: List[str] = field(default_factory=list)
+    ml_config: Optional[MLRuntimeConfig] = None
 
     # Telemetry and logging
     enable_dashboard: bool = True
@@ -87,6 +90,8 @@ class NetworkSecurityServer:
             num_workers=config.workers,
             queue_size=config.queue_size,
             active_prevention=config.active_prevention,
+            threat_intel_feeds=config.threat_intel_feeds,
+            ml_config=config.ml_config,
             on_alert_generated=self._on_alert_raised,
         )
 
