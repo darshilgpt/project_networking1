@@ -1,0 +1,7 @@
+# Pyrefly configuration
+search-path = ["project_networking"]
+site-packages-path = [".venv/Lib/site-packages"]
+python-interpreter-path = ".venv/Scripts/python.exe"
+python-version = "3.12"
+python-platform = "windows"
+

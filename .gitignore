@@ -1,0 +1,55 @@
+# ==============================================================================
+# Global Git Ignore for DPI / IDS / IPS & React SOC Dashboard
+# ==============================================================================
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python compiled bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.coverage
+htmlcov/
+*.log
+security_server.log
+
+# Node & Frontend dependencies
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Secrets & Local Environment Configs
+.env
+.env.local
+.env.*.local
+!.env.example
+frontend/.env
+frontend/.env.local
+
+# IDE & OS Metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*.tmp
+
+# Packet captures & Raw heavy datasets (>50MB GitHub limit)
+*.pcap
+*.pcapng
+project_networking/ml/data/datasets/cicids2017/*.csv
+ml/data/datasets/cicids2017/*.csv
+sample_vpn_traffic.pcap
+
+# Note: Trained models in ml/artifacts/ are preserved so ML inference works immediately.

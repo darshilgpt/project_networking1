@@ -1,0 +1,83 @@
+[
+  {
+    "scenario": "1. TCP Port Scan",
+    "input": "Synthetic TCP SYN probes across 19 ports",
+    "detected": true,
+    "category": "PORT_SCAN",
+    "severity": "HIGH",
+    "ws_propagated": true,
+    "target_page": "Security Alerts & Overview"
+  },
+  {
+    "scenario": "2. SYN Flood Burst",
+    "input": "Rapid burst of 35 SYN packets (0.01s interval)",
+    "detected": true,
+    "category": "SYN_FLOOD",
+    "severity": "CRITICAL",
+    "ws_propagated": true,
+    "target_page": "Security Alerts & Live Monitoring"
+  },
+  {
+    "scenario": "3. HTTP SQL Injection",
+    "input": "Synthetic HTTP payload with UNION SELECT",
+    "detected": true,
+    "category": "SQL_INJECTION",
+    "severity": "HIGH",
+    "ws_propagated": true,
+    "target_page": "Security Alerts & Detail Modal"
+  },
+  {
+    "scenario": "4. HTTP XSS",
+    "input": "Synthetic HTTP URI with script tag injection",
+    "detected": true,
+    "category": "XSS",
+    "severity": "HIGH",
+    "ws_propagated": true,
+    "target_page": "Security Alerts"
+  },
+  {
+    "scenario": "5. Directory Traversal",
+    "input": "Synthetic HTTP request referencing /etc/passwd",
+    "detected": true,
+    "category": "PATH_TRAVERSAL",
+    "severity": "HIGH",
+    "ws_propagated": true,
+    "target_page": "Security Alerts"
+  },
+  {
+    "scenario": "6. DNS Tunneling",
+    "input": "High-entropy pseudo-hex DNS subdomain query",
+    "detected": true,
+    "category": "SUSPICIOUS_DNS",
+    "severity": "MEDIUM",
+    "ws_propagated": true,
+    "target_page": "Security Alerts"
+  },
+  {
+    "scenario": "7. Threat Intel C2 IP",
+    "input": "Traffic from known Cobalt Strike C2 IP (198.51.100.23)",
+    "detected": true,
+    "category": "MALICIOUS_IP",
+    "severity": "HIGH",
+    "ws_propagated": true,
+    "target_page": "Security Alerts & Overview"
+  },
+  {
+    "scenario": "8. ML Anomaly / Classification",
+    "input": "Feature vector inference via Isolation Forest & Random Forest",
+    "detected": true,
+    "category": "ANOMALY",
+    "severity": "MEDIUM",
+    "ws_propagated": true,
+    "target_page": "ML Analytics"
+  },
+  {
+    "scenario": "9. Benign Traffic",
+    "input": "Standard HTTP GET request for static index.html",
+    "detected": false,
+    "category": "N/A (Benign)",
+    "severity": "N/A",
+    "ws_propagated": false,
+    "target_page": "Flows & Packets (Recorded as clean ALLOW)"
+  }
+]
