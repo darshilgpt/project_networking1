@@ -1,41 +1,66 @@
-@'
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environments
+# Virtual Environments
 .venv/
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
-# Cache and testing
+# Testing & Coverage
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
+coverage.xml
+*.cover
 
-# Logs
+# Logs & Databases
 *.log
+*.sqlite
+*.sqlite3
+security_server.log
 
-# Secrets
+# Environment & Secrets
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
 
-# IDE and OS
+# IDE & OS Files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+*.swp
+*.bak
+*.tmp
 
-
-# Packet captures
+# Packet captures & Raw heavy datasets (>50MB)
 *.pcap
 *.pcapng
+ml/data/datasets/cicids2017/*.csv
+sample_vpn_traffic.pcap
 
-# Temporary files
-*.tmp
-*.bak
-*.swp
-'@ | Add-Content -Path .gitignore
+# Note: Model artifacts (ml/artifacts/*) are kept tracked so inference runs out of the box.

@@ -52,13 +52,14 @@ class LiveTerminalDashboard:
         self._start_time = time.time()
         self._is_running = False
 
-    def _format_bytes(self, num_bytes: int) -> str:
+    def _format_bytes(self, num_bytes: float | int) -> str:
         """Converts bytes to human readable format."""
+        val: float = float(num_bytes)
         for unit in ["B", "KB", "MB", "GB"]:
-            if num_bytes < 1024.0:
-                return f"{num_bytes:.1f} {unit}"
-            num_bytes /= 1024.0
-        return f"{num_bytes:.1f} TB"
+            if val < 1024.0:
+                return f"{val:.1f} {unit}"
+            val /= 1024.0
+        return f"{val:.1f} TB"
 
     def _format_uptime(self) -> str:
         """Returns uptime formatted as HH:MM:SS."""
@@ -217,6 +218,49 @@ class LiveTerminalDashboard:
         )
         return table
 
+    def build_ml_telemetry_table(self) -> Table:
+        """Constructs a compact panel table displaying ML runtime telemetry."""
+        table = Table(
+            box=box.SIMPLE_HEAD,
+            expand=True,
+            header_style="bold magenta",
+            title="[bold white]MACHINE LEARNING RUNTIME TELEMETRY[/bold white]",
+            title_justify="left",
+        )
+        table.add_column("Metric", style="bold white", ratio=2)
+        table.add_column("Value", justify="right", ratio=2)
+
+        ml_engine = getattr(self.worker_pool, "ml_engine", None)
+        if ml_engine is None or not getattr(ml_engine.config, "enabled", False):
+            table.add_row("ML Runtime Status", "[dim]DISABLED / UNAVAILABLE[/dim]")
+            return table
+
+        metrics_snap = ml_engine.metrics.get_snapshot()
+        q_depth = ml_engine._queue.qsize()
+        q_cap = ml_engine.config.queue_capacity
+
+        q_style = "green" if q_depth < (q_cap * 0.7) else ("yellow" if q_depth < (q_cap * 0.9) else "bold red")
+        table.add_row("Queue Depth", f"[{q_style}]{q_depth} / {q_cap}[/{q_style}]")
+        table.add_row("Jobs Submitted", f"{metrics_snap.get('jobs_submitted', 0):,}")
+        table.add_row("Jobs Processed", f"{metrics_snap.get('jobs_processed', 0):,}")
+
+        drops = metrics_snap.get("queue_drops", 0)
+        drop_style = "green" if drops == 0 else "bold red"
+        table.add_row("Queue Drops", f"[{drop_style}]{drops:,}[/{drop_style}]")
+
+        failures = metrics_snap.get("inference_failures", 0)
+        fail_style = "green" if failures == 0 else "bold red"
+        table.add_row("Inference Failures", f"[{fail_style}]{failures:,}[/{fail_style}]")
+
+        avg_lat = metrics_snap.get("avg_inference_latency_ms", 0.0)
+        table.add_row("Avg Latency", f"{avg_lat:.2f} ms")
+
+        rf_hits = metrics_snap.get("rf_classifications", 0)
+        if_hits = metrics_snap.get("if_anomalies", 0)
+        table.add_row("ML Detections (RF / IF)", f"{rf_hits} / {if_hits}")
+
+        return table
+
     def build_alerts_table(self) -> Table:
         """Constructs the recent Security Alerts and IDS events table."""
         table = Table(
@@ -272,17 +316,19 @@ class LiveTerminalDashboard:
         header = self.build_header_panel(stats, src_stats)
         clients_tbl = self.build_clients_table(clients)
         dpi_tbl = self.build_dpi_summary_table()
+        ml_tbl = self.build_ml_telemetry_table()
         alerts_tbl = self.build_alerts_table()
 
         layout = Layout()
         layout.split_column(
             Layout(header, name="header", size=5),
             Layout(clients_tbl, name="clients", ratio=3),
-            Layout(name="lower", ratio=3),
+            Layout(name="lower", ratio=4),
         )
         layout["lower"].split_row(
-            Layout(dpi_tbl, name="dpi", ratio=1),
-            Layout(alerts_tbl, name="alerts", ratio=2),
+            Layout(dpi_tbl, name="dpi", ratio=2),
+            Layout(ml_tbl, name="ml", ratio=2),
+            Layout(alerts_tbl, name="alerts", ratio=3),
         )
 
         return layout
@@ -341,6 +387,18 @@ class LiveTerminalDashboard:
         self.console.print(f"  - Forwarded / Allowed   : {stats.forwarded_or_reinjected_packets:,}")
         self.console.print(f"  - Simulated Blocks      : {stats.simulated_blocks:,}")
         self.console.print("-" * 70, style="dim cyan")
+
+        ml_engine = getattr(self.worker_pool, "ml_engine", None)
+        if ml_engine and getattr(ml_engine.config, "enabled", False):
+            ml_snap = ml_engine.metrics.get_snapshot()
+            self.console.print("  [bold white]Machine Learning Runtime Telemetry:[/bold white]")
+            self.console.print(f"  - Jobs Submitted        : {ml_snap.get('jobs_submitted', 0):,}")
+            self.console.print(f"  - Jobs Processed        : {ml_snap.get('jobs_processed', 0):,}")
+            self.console.print(f"  - Queue Drops           : {ml_snap.get('queue_drops', 0):,}")
+            self.console.print(f"  - Inference Failures    : {ml_snap.get('inference_failures', 0):,}")
+            self.console.print(f"  - Avg Inference Latency : {ml_snap.get('avg_inference_latency_ms', 0.0):.2f} ms")
+            self.console.print(f"  - RF / IF Detections    : {ml_snap.get('rf_classifications', 0):,} / {ml_snap.get('if_anomalies', 0):,}")
+            self.console.print("-" * 70, style="dim cyan")
 
         self.console.print("\n[bold white]Registered Clients:[/bold white]")
         for c in clients:

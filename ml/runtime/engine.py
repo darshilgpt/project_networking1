@@ -64,9 +64,10 @@ class MLRuntimeEngine:
         self._alert_id_counter = 500000  # Offset to avoid collision with standard IDS alert IDs
         self._alert_id_lock = threading.Lock()
 
-        # Deduplication state: tracks flow IDs submitted for ML inference (bounded LRU-style set)
+        # Deduplication state: tracks evaluated milestones per flow ID (bounded OrderedDict for LRU eviction)
+        # Milestones: 0 = initial maturity; >=1 = packet milestones (e.g. 100, 1000); -1, -2... = byte milestones
         self._submitted_flows_lock = threading.Lock()
-        self._submitted_flow_ids: Set[int] = set()
+        self._flow_milestones_evaluated: Dict[int, Set[int]] = {}
         self._max_tracked_flows = 50000
 
         # Asynchronous worker infrastructure
@@ -90,10 +91,23 @@ class MLRuntimeEngine:
         """Loads model bundles gracefully; on failure or missing files, disables ML without crashing."""
         base_dir = self.config.artifacts_dir
         if not os.path.exists(base_dir):
-            logger.warning(f"Configured ML artifacts directory '{base_dir}' does not exist. Disabling ML models.")
-            self.rf_model = None
-            self.if_model = None
-            return
+            if base_dir in ("ml/artifacts", "artifacts"):
+                # Default path provided; check relative to module root or project_networking
+                alt_dir = os.path.join(os.path.dirname(__file__), "..", "artifacts")
+                if os.path.exists(alt_dir):
+                    base_dir = os.path.abspath(alt_dir)
+                elif os.path.exists(os.path.join("project_networking", base_dir)):
+                    base_dir = os.path.abspath(os.path.join("project_networking", base_dir))
+                else:
+                    logger.warning(f"Configured ML artifacts directory '{base_dir}' does not exist. Disabling ML models.")
+                    self.rf_model = None
+                    self.if_model = None
+                    return
+            else:
+                logger.warning(f"Configured ML artifacts directory '{base_dir}' does not exist. Disabling ML models.")
+                self.rf_model = None
+                self.if_model = None
+                return
 
         # 1. Load Random Forest
         if self.config.random_forest_enabled:
@@ -144,11 +158,19 @@ class MLRuntimeEngine:
         )
 
     def stop(self, timeout: float = 2.0) -> None:
-        """Gracefully terminates worker threads without data races."""
+        """Gracefully terminates worker threads without data races, draining pending jobs within timeout."""
         if not self._is_running:
             return
 
         self._is_running = False
+        start_t = time.perf_counter()
+
+        # Attempt to drain pending queue items if practical within half of the allocated timeout
+        drain_timeout = max(0.1, timeout * 0.5)
+        deadline = start_t + drain_timeout
+        while not self._queue.empty() and time.perf_counter() < deadline:
+            time.sleep(0.02)
+
         # Send poison pills to all workers
         for _ in self._workers:
             try:
@@ -156,59 +178,102 @@ class MLRuntimeEngine:
             except queue.Full:
                 pass
 
+        # Join workers with remaining timeout
         for t in self._workers:
-            t.join(timeout=timeout)
+            remaining = max(0.05, timeout - (time.perf_counter() - start_t))
+            t.join(timeout=remaining)
 
         self._workers.clear()
         logger.info("ML inference workers gracefully stopped.")
 
+    def _get_flow_pending_milestones(self, flow: Flow) -> List[int]:
+        """
+        Determines which milestones (if any) are eligible for evaluation on this flow.
+        Milestone conventions:
+        - 0: Initial maturity (terminal TCP state or >= min_packets and >= min_duration).
+        - positive integer M: Packet count milestone (e.g. 100, 1000).
+        - negative integer -B: Byte volume milestone (e.g. -500000, -5000000).
+        """
+        with self._submitted_flows_lock:
+            evaluated = self._flow_milestones_evaluated.get(flow.flow_id, set())
+
+        pending: List[int] = []
+        stats = flow.stats
+
+        # 1. Check initial maturity milestone (0)
+        if 0 not in evaluated:
+            is_terminal = flow.tcp_state in (
+                TCPState.CLOSED,
+                TCPState.RESET,
+                TCPState.FIN_WAIT,
+                TCPState.FIN_WAIT_1,
+                TCPState.FIN_WAIT_2,
+                TCPState.TIME_WAIT,
+            )
+            has_min_packets = stats.total_packets >= self.config.min_packets_for_inference
+            has_min_duration = stats.duration >= self.config.min_duration_for_inference
+
+            if is_terminal or (has_min_packets and has_min_duration):
+                pending.append(0)
+
+        # 2. Check packet milestones (sorted ascending)
+        for m in sorted(getattr(self.config, "packet_milestones", [100, 1000])):
+            if m not in evaluated and stats.total_packets >= m:
+                pending.append(m)
+
+        # 3. Check byte milestones (sorted ascending)
+        for bm in sorted(getattr(self.config, "byte_milestones", [500_000, 5_000_000])):
+            m_key = -bm
+            if m_key not in evaluated and stats.total_bytes >= bm:
+                pending.append(m_key)
+
+        return pending
+
     def should_evaluate_flow(self, flow: Flow) -> bool:
         """
-        Determines whether a flow has matured sufficiently for ML classification.
+        Determines whether a flow has matured sufficiently or crossed a new milestone.
         Conditions:
-        - Must not have been previously submitted for inference.
-        - Either:
-          1. Flow reached TCP terminal state (FIN_WAIT, CLOSED, RESET), OR
-          2. Flow accumulated enough packets/duration (e.g. >= 5 packets, >= 50ms).
+        - Engine must be running and enabled with at least one active model.
+        - Flow has at least one pending unevaluated milestone (0, packet milestone, or byte milestone).
         """
-        if not self.config.enabled or (self.rf_model is None and self.if_model is None):
+        if not self._is_running or not self.config.enabled or (self.rf_model is None and self.if_model is None):
             return False
 
-        with self._submitted_flows_lock:
-            if flow.flow_id in self._submitted_flow_ids:
-                return False
-
-        stats = flow.stats
-        is_terminal = flow.tcp_state in (
-            TCPState.CLOSED,
-            TCPState.RESET,
-            TCPState.FIN_WAIT,
-            TCPState.FIN_WAIT_1,
-            TCPState.FIN_WAIT_2,
-            TCPState.TIME_WAIT,
-        )
-
-        has_min_packets = stats.total_packets >= self.config.min_packets_for_inference
-        has_min_duration = stats.duration >= self.config.min_duration_for_inference
-
-        return is_terminal or (has_min_packets and has_min_duration)
+        return len(self._get_flow_pending_milestones(flow)) > 0
 
     def submit_flow(self, flow: Flow) -> bool:
         """
         Non-blocking submission of a flow to the asynchronous ML inference queue.
         Guarantees zero blocking of packet capture.
+        Supports milestone-based re-evaluation for long-lived flows without redundant submissions.
         """
-        if not self.should_evaluate_flow(flow):
+        if not self._is_running or not self.config.enabled or (self.rf_model is None and self.if_model is None):
+            return False
+
+        pending = self._get_flow_pending_milestones(flow)
+        if not pending:
             return False
 
         with self._submitted_flows_lock:
-            if flow.flow_id in self._submitted_flow_ids:
+            # Re-check under lock
+            evaluated = self._flow_milestones_evaluated.setdefault(flow.flow_id, set())
+            actually_new = [m for m in pending if m not in evaluated]
+            if not actually_new:
                 return False
-            # Bounded set management
-            if len(self._submitted_flow_ids) >= self._max_tracked_flows:
-                # Evict half to maintain bounded memory
-                self._submitted_flow_ids.clear()
-            self._submitted_flow_ids.add(flow.flow_id)
+
+            # Bounded cache management
+            if len(self._flow_milestones_evaluated) >= self._max_tracked_flows:
+                # Evict oldest half to maintain bounded memory
+                remove_count = len(self._flow_milestones_evaluated) // 2
+                it = iter(list(self._flow_milestones_evaluated.keys()))
+                for _ in range(remove_count):
+                    try:
+                        del self._flow_milestones_evaluated[next(it)]
+                    except (StopIteration, KeyError):
+                        break
+
+            # Mark milestones as evaluated
+            evaluated.update(actually_new)
 
         # Extract features vector (40 features)
         try:

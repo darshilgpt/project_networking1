@@ -47,6 +47,7 @@ class ServerConfig:
     wireguard_peers_file: Optional[str] = "wireguard_config/wireguard_peers.json"
     threat_intel_feeds: List[str] = field(default_factory=list)
     ml_config: Optional[MLRuntimeConfig] = None
+    notification_manager: Optional[Any] = None
 
     # Telemetry and logging
     enable_dashboard: bool = True
@@ -122,6 +123,11 @@ class NetworkSecurityServer:
             f"Rule: {alert.matched_rule} | Action: {alert.recommended_action.value} | "
             f"Evidence: {alert.evidence}"
         )
+        if self.config.notification_manager is not None:
+            try:
+                self.config.notification_manager.handle_alert(alert)
+            except Exception as notif_err:
+                logger.error(f"Error dispatching alert to notification manager: {notif_err}")
 
     # --- IPS Enforcement Control APIs ---
 

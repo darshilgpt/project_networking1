@@ -21,6 +21,9 @@ class MLRuntimeConfig:
     # Flow maturity criteria
     min_packets_for_inference: int = 5
     min_duration_for_inference: float = 0.05  # 50 ms
+    # Milestone-based re-evaluation for long-lived flows
+    packet_milestones: list[int] = field(default_factory=lambda: [100, 1000])
+    byte_milestones: list[int] = field(default_factory=lambda: [500_000, 5_000_000])
 
 
 @dataclass
