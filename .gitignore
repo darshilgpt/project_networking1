@@ -53,3 +53,4 @@ ml/data/datasets/cicids2017/*.csv
 sample_vpn_traffic.pcap
 
 # Note: Trained models in ml/artifacts/ are preserved so ML inference works immediately.
+
